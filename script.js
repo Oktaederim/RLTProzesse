@@ -49,9 +49,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function getH(T, x_g_kg) { if (!isFinite(x_g_kg)) return Infinity; const x_kg_kg = x_g_kg / 1000.0; return 1.006 * T + x_kg_kg * (2501 + 1.86 * T); }
 
     function calculateAll() {
-        const visibleFields = [dom.tempAussen, dom.rhAussen, dom.tempZuluft, dom.volumenstrom, dom.druck, dom.preisWaerme, dom.preisStrom, dom.eer, dom.tempHeizVorlauf, dom.tempHeizRuecklauf, dom.tempKuehlVorlauf, dom.tempKuehlRuecklauf, dom.tempVorerhitzer];
-        if (dom.rhZuluft.offsetParent !== null) visibleFields.push(dom.rhZuluft);
-        if (dom.xZuluft.offsetParent !== null) visibleFields.push(dom.xZuluft);
+        const visibleFields = [dom.tempAussen, dom.rhAussen, dom.tempZuluft, dom.volumenstrom, dom.druck, dom.preisWaerme, dom.preisStrom, dom.eer, dom.tempHeizVorlauf, dom.tempHeizRuecklauf, dom.tempKuehlVorlauf, dom.tempKuehlRuecklauf];
+        if (dom.kuehlerAktiv.checked && dom.kuehlmodus.value === 'dehumidify') {
+            if (dom.feuchteSollTyp.value === 'rh') visibleFields.push(dom.rhZuluft);
+            else visibleFields.push(dom.xZuluft);
+        }
         for (const field of visibleFields) {
             if (field.value === '') {
                 dom.processOverviewContainer.innerHTML = `<div class="process-overview process-error">Fehler: Ein sichtbares Eingabefeld ist leer. Bitte alle Felder ausfüllen.</div>`;
@@ -119,7 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (currentState.t < zuluftSoll.t - TOLERANCE) {
             const h_final = getH(zuluftSoll.t, currentState.x);
             operations.ne.p = massenstrom_kg_s * (h_final - currentState.h);
-            currentState = { ...zuluftSoll, t: zuluftSoll.t, h: h_final, x: currentState.x, rh: getRh(zuluftSoll.t, currentState.x, inputs.druck) };
+            currentState = { t: zuluftSoll.t, rh: getRh(zuluftSoll.t, currentState.x, inputs.druck), x: currentState.x, h: h_final };
         }
         states[3] = { ...currentState };
 
@@ -153,11 +155,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         let heizleistungGesamt = operations.ve.p + operations.ne.p;
-        let summaryContainer = document.getElementById('summary-container');
         if (operations.ve.p > 0 && operations.ne.p > 0) {
-            summaryContainer.innerHTML = `<div class="process-step summary"><h4>➕ Gesamt-Heizleistung</h4><div class="result-grid"><div class="result-item"><span class="label">Leistung (VE + NE)</span><span class="value">${heizleistungGesamt.toFixed(2)} kW</span></div></div></div>`;
+            dom.summaryContainer.innerHTML = `<div class="process-step summary"><h4>➕ Gesamt-Heizleistung</h4><div class="result-grid"><div class="result-item"><span class="label">Leistung (VE + NE)</span><span class="value">${heizleistungGesamt.toFixed(2)} kW</span></div></div></div>`;
         } else {
-            summaryContainer.innerHTML = '';
+            dom.summaryContainer.innerHTML = '';
         }
 
         const kaelteLeistung = operations.k.p;
@@ -173,7 +174,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.kostenGesamt.textContent = `${currentTotalCost.toFixed(2)} €/h`;
         
         dom.setReferenceBtn.className = referenceState ? 'activated' : '';
-        dom.setReferenceBtn.textContent = referenceState ? 'Referenz gesetzt' : 'Neue Referenz setzen';
+        dom.setReferenceBtn.textContent = referenceState ? 'Referenz gesetzt' : 'Referenz festlegen';
 
         if (referenceState) {
             const changeAbs = currentTotalCost - referenceState.cost;
@@ -213,7 +214,6 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleSetReference() {
         referenceState = { cost: currentTotalCost, temp: parseFloat(dom.tempZuluft.value), rh: parseFloat(dom.rhZuluft.value), vol: parseFloat(dom.volumenstrom.value) };
         dom.resetSlidersBtn.disabled = false;
-        dom.referenceDetails.classList.remove('invisible');
         calculateAll();
     }
     
@@ -222,7 +222,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.tempAussen.value = 20.0; dom.rhAussen.value = 50.0;
         dom.tempZuluft.value = 20.0; dom.rhZuluft.value = 50.0;
         dom.xZuluft.value = 7.26; dom.volumenstrom.value = 5000;
-        dom.kuehlerAktiv.checked = true; dom.tempVorerhitzer.value = 5.0;
+        dom.kuehlerAktiv.checked = true; dom.kuehlmodus.value = 'dehumidify';
         dom.druck.value = 1013.25; dom.feuchteSollTyp.value = 'rh';
         dom.preisWaerme.value = 0.12; dom.preisStrom.value = 0.30;
         dom.eer.value = 3.5;
@@ -246,7 +246,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function handleKuehlerToggle() {
         const isActive = dom.kuehlerAktiv.checked;
-        dom.kuehlmodusWrapper.style.display = isActive ? 'block' : 'none';
+        dom.kuehlmodusWrapper.classList.toggle('hidden', !isActive);
         const isDehumidify = dom.kuehlmodus.value === 'dehumidify';
         dom.sollFeuchteWrapper.style.display = isActive && isDehumidify ? 'block' : 'none';
     }
@@ -264,31 +264,41 @@ document.addEventListener('DOMContentLoaded', () => {
         label.textContent = isFloat ? newValue.toFixed(1) : newValue;
     }
     
-    // --- Event Listeners Setup ---
+    // --- INITIALIZATION ---
     function addEventListeners() {
-        const inputsToRecalculate = [
-            dom.tempAussen, dom.rhAussen, dom.tempVorerhitzer, dom.druck, dom.preisWaerme, dom.preisStrom, dom.eer,
-            dom.xZuluft, dom.tempHeizVorlauf, dom.tempHeizRuecklauf, dom.tempKuehlVorlauf, dom.tempKuehlRuecklauf
+        // Simple inputs that only trigger a recalculation
+        const simpleInputs = [
+            dom.tempAussen, dom.rhAussen, dom.druck,
+            dom.preisWaerme, dom.preisStrom, dom.eer,
+            dom.tempHeizVorlauf, dom.tempHeizRuecklauf,
+            dom.tempKuehlVorlauf, dom.tempKuehlRuecklauf
         ];
-        inputsToRecalculate.forEach(input => input.addEventListener('input', calculateAll));
+        simpleInputs.forEach(input => input.addEventListener('input', calculateAll));
 
-        const syncedInputs = [dom.volumenstrom, dom.tempZuluft, dom.rhZuluft];
-        syncedInputs.forEach(input => input.addEventListener('input', () => { syncAllSlidersToInputs(); calculateAll(); }));
-        
-        const sliders = [dom.volumenstromSlider, dom.tempZuluftSlider, dom.rhZuluftSlider];
-        sliders.forEach(slider => slider.addEventListener('input', () => {
-            const inputId = slider.id.replace('Slider', '');
-            const isFloat = inputId !== 'volumenstrom';
-            const value = isFloat ? parseFloat(slider.value).toFixed(1) : slider.value;
-            dom[inputId].value = value;
-            dom[inputId+'Label'].textContent = value;
-            calculateAll();
-        }));
+        // Synced inputs (sliders and number boxes)
+        [dom.volumenstrom, dom.tempZuluft, dom.rhZuluft, dom.xZuluft].forEach(input => {
+            input.addEventListener('input', () => {
+                syncAllSlidersToInputs();
+                calculateAll();
+            });
+        });
+        [dom.volumenstromSlider, dom.tempZuluftSlider, dom.rhZuluftSlider].forEach(slider => {
+            slider.addEventListener('input', () => {
+                const inputId = slider.id.replace('Slider', '');
+                const isFloat = inputId !== 'volumenstrom';
+                const value = isFloat ? parseFloat(slider.value).toFixed(1) : slider.value;
+                dom[inputId].value = value;
+                dom[inputId+'Label'].textContent = value;
+                calculateAll();
+            });
+        });
 
+        // Toggles and Selects that change UI and trigger recalculation
         dom.kuehlerAktiv.addEventListener('change', () => { handleKuehlerToggle(); calculateAll(); });
         dom.feuchteSollTyp.addEventListener('change', calculateAll);
         dom.kuehlmodus.addEventListener('change', () => { handleKuehlerToggle(); calculateAll(); });
         
+        // Buttons with specific actions
         dom.resetBtn.addEventListener('click', resetToDefaults);
         dom.resetSlidersBtn.addEventListener('click', resetSlidersToRef);
         dom.setReferenceBtn.addEventListener('click', handleSetReference);
