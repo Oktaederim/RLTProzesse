@@ -38,9 +38,7 @@ document.addEventListener('DOMContentLoaded', () => {
         tempKuehlVorlauf: document.getElementById('tempKuehlVorlauf'), tempKuehlRuecklauf: document.getElementById('tempKuehlRuecklauf'),
     };
 
-    const TOLERANCE = 0.01;
-    const CP_WASSER = 4.186;
-    const RHO_WASSER = 1000;
+    const TOLERANCE = 0.01; const CP_WASSER = 4.186; const RHO_WASSER = 1000;
 
     function getPs(T) { if (T >= 0) return 611.2 * Math.exp((17.62 * T) / (243.12 + T)); else return 611.2 * Math.exp((22.46 * T) / (272.62 + T)); }
     function getX(T, rH, p) { if (p <= 0) return Infinity; const p_s = getPs(T); const p_v = (rH / 100) * p_s; if (p_v >= p) return Infinity; return 622 * (p_v / (p - p_v)); }
@@ -75,14 +73,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const aussen = { t: inputs.tempAussen, rh: inputs.rhAussen, x: getX(inputs.tempAussen, inputs.rhAussen, inputs.druck) };
         if (!isFinite(aussen.x)) {
-            dom.processOverviewContainer.innerHTML = `<div class="process-overview process-error">Fehler im Außenluft-Zustand. Prüfen Sie Temperatur, Feuchte und Luftdruck.</div>`;
+            dom.processOverviewContainer.innerHTML = `<div class="process-overview process-error">Fehler im Außenluft-Zustand.</div>`;
             return;
         }
         aussen.h = getH(aussen.t, aussen.x);
 
         const massenstrom_kg_s = (inputs.volumenstrom / 3600) * 1.2;
         const zuluftSoll = { t: inputs.tempZuluft };
-
         if (inputs.kuehlerAktiv && inputs.kuehlmodus === 'dehumidify') {
             if (inputs.feuchteSollTyp === 'rh') { zuluftSoll.rh = inputs.rhZuluft; zuluftSoll.x = getX(zuluftSoll.t, zuluftSoll.rh, inputs.druck); } 
             else { zuluftSoll.x = inputs.xZuluft; zuluftSoll.rh = getRh(zuluftSoll.t, zuluftSoll.x, inputs.druck); }
@@ -174,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
         dom.kostenGesamt.textContent = `${currentTotalCost.toFixed(2)} €/h`;
         
         dom.setReferenceBtn.className = referenceState ? 'activated' : '';
-        dom.setReferenceBtn.textContent = referenceState ? 'Referenz gesetzt' : 'Referenz festlegen';
+        dom.setReferenceBtn.textContent = referenceState ? 'Referenz gesetzt' : 'Neue Referenz setzen';
 
         if (referenceState) {
             const changeAbs = currentTotalCost - referenceState.cost;
@@ -268,20 +265,18 @@ document.addEventListener('DOMContentLoaded', () => {
     function addEventListeners() {
         // Simple inputs that only trigger a recalculation
         const simpleInputs = [
-            dom.tempAussen, dom.rhAussen, dom.druck,
+            dom.tempAussen, dom.rhAussen, dom.tempVorerhitzer, dom.druck,
             dom.preisWaerme, dom.preisStrom, dom.eer,
-            dom.tempHeizVorlauf, dom.tempHeizRuecklauf,
+            dom.xZuluft, dom.tempHeizVorlauf, dom.tempHeizRuecklauf,
             dom.tempKuehlVorlauf, dom.tempKuehlRuecklauf
         ];
         simpleInputs.forEach(input => input.addEventListener('input', calculateAll));
 
-        // Synced inputs (sliders and number boxes)
-        [dom.volumenstrom, dom.tempZuluft, dom.rhZuluft, dom.xZuluft].forEach(input => {
-            input.addEventListener('input', () => {
-                syncAllSlidersToInputs();
-                calculateAll();
-            });
-        });
+        // Synced inputs (sliders and number boxes) have their own dedicated listeners
+        dom.volumenstrom.addEventListener('input', () => { syncSliderToInput(dom.volumenstromSlider, dom.volumenstrom, dom.volumenstromLabel); calculateAll(); });
+        dom.tempZuluft.addEventListener('input', () => { syncSliderToInput(dom.tempZuluftSlider, dom.tempZuluft, dom.tempZuluftLabel, true); calculateAll(); });
+        dom.rhZuluft.addEventListener('input', () => { syncSliderToInput(dom.rhZuluftSlider, dom.rhZuluft, dom.rhZuluftLabel, true); calculateAll(); });
+        
         [dom.volumenstromSlider, dom.tempZuluftSlider, dom.rhZuluftSlider].forEach(slider => {
             slider.addEventListener('input', () => {
                 const inputId = slider.id.replace('Slider', '');
