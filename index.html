@@ -23,7 +23,7 @@
             <div class="main-config-section">
                 <h4>Hauptkomponenten</h4>
                 <div class="switch-container">
-                    <label for="kuehlerAktiv" class="switch-label">Kühler</label>
+                    <label for="kuehlerAktiv" class="switch-label">Kühler / Entfeuchtung</label>
                     <label class="switch">
                         <input type="checkbox" id="kuehlerAktiv" checked>
                         <span class="slider round"></span>
@@ -129,7 +129,7 @@
                         <h5>💧 Kühler</h5>
                         <p>P: <span id="res-p-k">0.00</span> kW</p>
                         <p>💧 <span id="res-wv-k">0.00</span> m³/h</p>
-                        <p> kondensat: <span id="res-kondensat">0.00</span> kg/h</p>
+                        <p>Kondens.: <span id="res-kondensat">0.00</span> kg/h</p>
                     </div>
                     <div class="state-node" id="state-k">
                         <p><span id="res-t-2">--</span> °C</p>
@@ -160,6 +160,7 @@
                     </div>
                 </div>
             </div>
+            <div id="summary-container"></div>
         </div>
 
         <div class="card" id="analysis-card">
@@ -200,7 +201,7 @@
                         <label>Zuluft-Rel. Feuchte: <span id="rhZuluftLabel">50.0</span> %</label>
                         <input type="range" id="rhZuluftSlider" min="30" max="70" step="0.5" value="50.0">
                     </div>
-                    <div id="reference-details">
+                    <div id="reference-details" class="invisible">
                         <hr>
                         <div class="cost-display change">
                             <span class="cost-label">Δ Kosten:</span>
